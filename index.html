@@ -586,11 +586,13 @@
          </div>
       </div>
    </footer>
-
    <script>
       function createBalls(containerId, count) {
          const container = document.getElementById(containerId);
          if (!container) return;
+         
+         // Clear existing balls to avoid duplicates
+         container.innerHTML = '';
          
          for (let i = 0; i < count; i++) {
             const ball = document.createElement('div');
@@ -631,6 +633,11 @@
             // Add a subtle shadow to make balls more visible against dark background
             ball.style.boxShadow = '0 0 20px rgba(188, 188, 188, 0.1)';
             
+            // Force animation to restart to ensure it works
+            setTimeout(() => {
+               ball.style.animation = `float ${duration}s infinite linear ${delay}s`;
+            }, 10);
+            
             container.appendChild(ball);
          }
       }
@@ -643,33 +650,43 @@
          });
       }
       
-      // Animate skill bars when they come into view
-      function animateSkillBars(entries, observer) {
-         entries.forEach(entry => {
-            if (entry.isIntersecting) {
-               const skillBars = entry.target.querySelectorAll('.skill-progress');
-               skillBars.forEach((bar, index) => {
-                  const targetWidth = bar.getAttribute('data-width');
-                  setTimeout(() => {
-                     bar.style.width = targetWidth;
-                  }, index * 150);
-               });
-               observer.unobserve(entry.target);
-            }
-         });
-      }
-      
-      // Animate elements when they come into view
+      // Fix for scroll animations
       function setupScrollAnimations() {
-         // Elements to animate
-         const elementsToAnimate = [
-            ...document.querySelectorAll('.skill-category'),
-            ...document.querySelectorAll('.service-card'),
-            ...document.querySelectorAll('.about-content'),
-            ...document.querySelectorAll('.project-content'),
-            document.querySelector('.testimonials-container')
-         ].filter(el => el !== null);
+         // Animate elements that are already in view on page load
+         const animateElementsInView = () => {
+            const elementsToAnimate = [
+               ...document.querySelectorAll('.skill-category'),
+               ...document.querySelectorAll('.service-card'),
+               ...document.querySelectorAll('.about-content'),
+               ...document.querySelectorAll('.project-content'),
+               document.querySelector('.testimonials-container')
+            ].filter(el => el !== null);
+            
+            elementsToAnimate.forEach(el => {
+               const rect = el.getBoundingClientRect();
+               const isInView = (
+                  rect.top <= (window.innerHeight || document.documentElement.clientHeight) * 0.85 &&
+                  rect.bottom >= 0
+               );
+               
+               if (isInView && !el.classList.contains('animated')) {
+                  el.classList.add('animated');
+                  
+                  // If it's a skill category, animate the skill bars
+                  if (el.classList.contains('skill-category')) {
+                     const skillBars = el.querySelectorAll('.skill-progress');
+                     skillBars.forEach((bar, index) => {
+                        const targetWidth = bar.getAttribute('data-width');
+                        setTimeout(() => {
+                           bar.style.width = targetWidth;
+                        }, index * 150);
+                     });
+                  }
+               }
+            });
+         };
          
+         // Animate elements on scroll
          const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                if (entry.isIntersecting) {
@@ -685,20 +702,39 @@
                         }, index * 150);
                      });
                   }
+                  
+                  observer.unobserve(entry.target);
                }
             });
          }, {
-            threshold: 0.2,
-            rootMargin: '0px 0px -50px 0px'
+            threshold: 0.15,
+            rootMargin: '0px 0px -100px 0px'
          });
          
-         elementsToAnimate.forEach(el => observer.observe(el));
+         // Observe all elements
+         const elementsToObserve = [
+            ...document.querySelectorAll('.skill-category'),
+            ...document.querySelectorAll('.service-card'),
+            ...document.querySelectorAll('.about-content'),
+            ...document.querySelectorAll('.project-content'),
+            document.querySelector('.testimonials-container')
+         ].filter(el => el !== null);
+         
+         elementsToObserve.forEach(el => observer.observe(el));
+         
+         // Also check for elements already in view on page load
+         animateElementsInView();
+         
+         // Check again after a short delay to catch elements that might load late
+         setTimeout(animateElementsInView, 500);
       }
       
       // Testimonial functionality
       function setupTestimonials() {
          const dots = document.querySelectorAll('.testimonial-dot');
          const testimonials = document.querySelectorAll('.testimonial-card');
+         
+         if (dots.length === 0 || testimonials.length === 0) return;
          
          dots.forEach(dot => {
             dot.addEventListener('click', function() {
@@ -716,10 +752,12 @@
                
                setTimeout(() => {
                   const activeTestimonial = document.getElementById(`testimonial${testimonialId}`);
-                  activeTestimonial.style.display = 'block';
-                  setTimeout(() => {
-                     activeTestimonial.style.opacity = '1';
-                  }, 10);
+                  if (activeTestimonial) {
+                     activeTestimonial.style.display = 'block';
+                     setTimeout(() => {
+                        activeTestimonial.style.opacity = '1';
+                     }, 10);
+                  }
                }, 300);
             });
          });
@@ -729,7 +767,9 @@
             currentTestimonial = currentTestimonial < 3 ? currentTestimonial + 1 : 1;
             
             dots.forEach(d => d.classList.remove('active'));
-            dots[currentTestimonial - 1].classList.add('active');
+            if (dots[currentTestimonial - 1]) {
+               dots[currentTestimonial - 1].classList.add('active');
+            }
             
             testimonials.forEach(testimonial => {
                testimonial.style.opacity = '0';
@@ -740,10 +780,12 @@
             
             setTimeout(() => {
                const activeTestimonial = document.getElementById(`testimonial${currentTestimonial}`);
-               activeTestimonial.style.display = 'block';
-               setTimeout(() => {
-                  activeTestimonial.style.opacity = '1';
-               }, 10);
+               if (activeTestimonial) {
+                  activeTestimonial.style.display = 'block';
+                  setTimeout(() => {
+                     activeTestimonial.style.opacity = '1';
+                  }, 10);
+               }
             }, 300);
          }, 5000);
       }
@@ -783,6 +825,8 @@
                menuToggle.innerHTML = navLinks.classList.contains('active') 
                   ? '<i class="fas fa-times"></i>' 
                   : '<i class="fas fa-bars"></i>';
+               // Update aria-expanded attribute for accessibility
+               menuToggle.setAttribute('aria-expanded', navLinks.classList.contains('active'));
             });
             
             // Close mobile menu when clicking a link
@@ -791,6 +835,7 @@
                anchor.addEventListener('click', function() {
                   navLinks.classList.remove('active');
                   menuToggle.innerHTML = '<i class="fas fa-bars"></i>';
+                  menuToggle.setAttribute('aria-expanded', 'false');
                });
             });
          }
@@ -814,7 +859,21 @@
          });
          
          // Make sure home section is visible immediately
-         document.getElementById('home').style.opacity = '1';
+         const homeSection = document.getElementById('home');
+         if (homeSection) {
+            homeSection.style.opacity = '1';
+         }
+         
+         // Force animation restart on balls after page load to ensure they work
+         setTimeout(() => {
+            document.querySelectorAll('.ball').forEach(ball => {
+               const currentAnimation = getComputedStyle(ball).animation;
+               ball.style.animation = 'none';
+               setTimeout(() => {
+                  ball.style.animation = currentAnimation;
+               }, 10);
+            });
+         }, 1000);
       });
    </script>
    <script>
