@@ -589,7 +589,7 @@ section {
    padding: 2%;
    transition: transform 0.5s;
 }
-.project-image #tridentu{
+.project-image#tridentu{
    padding: 5%;
 }
 .project-image:hover img {
